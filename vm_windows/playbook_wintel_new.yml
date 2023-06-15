@@ -1,0 +1,137 @@
+---
+- name: Crear VM Windows
+  hosts: localhost
+  connection: local
+  tasks:
+
+  - name: Creamos grupo de Recursos
+    azure_rm_resourcegroup:
+      name: "{{ MiGrupoDeRecursos_Wintel }}"
+      location: eastus
+
+  - name: Creamos la Red Virtual (VirtualNetwork)
+    azure_rm_virtualnetwork:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}"
+      name: vNet_wintel
+      address_prefixes: "10.0.0.0/16"
+
+  - name: Añadimos Subnet
+    azure_rm_subnet:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}"
+      name: subnet_wintel
+      address_prefix: "10.0.1.0/24"
+      virtual_network: vNet_wintel
+
+  - name: Creamos IP Publica para VM Wintel
+    azure_rm_publicipaddress:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}"
+      allocation_method: Static
+      name: IP_Publica_Wintel
+    register: output_ip_address
+
+  - name: Sacamos la IP Publica
+    debug:
+      msg: "La ip publica es -> {{ output_ip_address.state.ip_address }}"
+
+  - name: Creamos grupo de Seguridad (NSG)
+    azure_rm_securitygroup:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}"
+      name: networkSecurityGroup_Wintel
+      rules:
+        - name: 'allow_rdp'
+          protocol: Tcp
+          destination_port_range: 3389 #Puerto RDP
+          access: Allow
+          priority: 1001
+          direction: Inbound
+        - name: 'allow_web_traffic'
+          protocol: Tcp
+          destination_port_range: #puerto 80 y 443 
+            - 80
+            - 443
+          access: Allow
+          priority: 1002
+          direction: Inbound
+        - name: 'allow_powershell_remoting'
+          protocol: Tcp
+          destination_port_range:  #permitir el puerto 5985/5986 el puerto para que se conecte PowerShell para ansible.
+            - 5985
+            - 5986
+          access: Allow
+          priority: 1003
+          direction: Inbound
+
+  - name: Creamos la interfaz network
+    azure_rm_networkinterface:
+      name: nic_wintel
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}"
+      virtual_network: vNet_wintel
+      subnet_name: subnet_wintel
+      security_group: networkSecurityGroup_Wintel
+      ip_configurations:
+        - name: default
+          public_ip_address_name: IP_Publica_Wintel
+          primary: True
+
+  - name: Creamos VM de Wintel Standard_DS1_v2
+    azure_rm_virtualmachine:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}" 
+      name: wintel-vm
+      vm_size: Standard_DS1_v2
+      admin_username: "{{ admin_username }}"
+      admin_password: "{{ admin_password }}"
+      network_interfaces: nic_wintel
+      os_type: Windows
+      image:
+          offer: WindowsServer
+          publisher: MicrosoftWindowsServer
+          sku: 2019-Datacenter
+          version: latest
+    no_log: true
+
+# - name: Creamos VM de Wintel Standard_DS1_v2 - VM2
+#     azure_rm_virtualmachine:
+#       resource_group: "{{ MiGrupoDeRecursos_Wintel }}" 
+#       name: wintel-vm2
+#       vm_size: Standard_DS1_v2
+#       admin_username: "{{ admin_username }}"
+#       admin_password: "{{ admin_password }}"
+#       network_interfaces: nic_wintel
+#       os_type: Windows
+#       image:
+#           offer: WindowsServer
+#           publisher: MicrosoftWindowsServer
+#           sku: 2019-Datacenter
+#           version: latest
+#     no_log: true
+
+  - name: Ejecutar script para habilitar el WInRM
+    azure_rm_virtualmachineextension:
+      name: winrm-extension
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}" 
+      virtual_machine_name: wintel-vm
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: '1.9'
+      settings: '{"fileUris": ["https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"],"commandToExecute": "powershell -ExecutionPolicy Unrestricted -File ConfigureRemotingForAnsible.ps1"}'
+      auto_upgrade_minor_version: true
+
+  - name: Obtener la información sobre la ip Publica de Wintel
+    azure_rm_publicipaddress_info:
+      resource_group: "{{ MiGrupoDeRecursos_Wintel }}" 
+      name: IP_Publica_Wintel
+    register: publicipaddresses
+
+  - name: set public ip address fact
+    set_fact: publicipaddress="{{ publicipaddresses | json_query('publicipaddresses[0].ip_address')}}"
+
+  - name: Esperando que el puerto WinRM esté abierto
+    wait_for:
+      port: 5986
+      host: '{{ publicipaddress }}'
+      timeout: 600
+
+
+
+
+

@@ -1,0 +1,11 @@
+---
+- name: Crear usuarios en las VMs llamado Fernando
+  hosts: node1
+  become: yes
+  tasks:
+  - name: Añadimos el usuario 'Fernando' al grupo de 'Root'
+    ansible.builtin.user:
+      name: Fernando
+      shell: /bin/bash
+      groups: root
+      append: yes

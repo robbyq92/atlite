@@ -1,0 +1,64 @@
+---
+- name: Crear Máquinas en Azure
+  hosts: localhost  #host local desde donde lanzamos para crear las vms.
+  connection: local
+  tasks:
+  - name: Creamos grupo de Recursos
+    azure_rm_resourcegroup:
+      name: MiGrupoDeRecursos_Unix
+      location: eastus
+  - name: Creamos el VNetwork
+    azure_rm_virtualnetwork:
+      resource_group: MiGrupoDeRecursos_Unix
+      name: Vnet_unix
+      address_prefixes: "10.0.0.0/16"
+  - name: Añadimos Sub_Nets
+    azure_rm_subnet:
+      resource_group: MiGrupoDeRecursos_Unix
+      name: Subnet_unix
+      address_prefix: "10.0.1.0/24"
+      virtual_network: Vnet_unix
+  - name: Creamos IP Publica
+    azure_rm_publicipaddress:
+      resource_group: MiGrupoDeRecursos_Unix
+      allocation_method: Static
+      name: IP_Publica_Unix
+    register: mi_ip_publica
+  - name: IP publica de la vm
+    debug:
+      msg: "La ip es {{ mi_ip_publica.state.ip_address }}."
+  - name: Crear NSG para SSH
+    azure_rm_securitygroup:
+      resource_group: MiGrupoDeRecursos_Unix
+      name: NSG_SSH_unix
+      rules:
+        - name: SSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 1001
+          direction: Inbound
+  - name: Crear NIC
+    azure_rm_networkinterface:
+      resource_group: MiGrupoDeRecursos_Unix
+      name: NIC_Unix
+      virtual_network: Vnet_unix
+      subnet: Subnet_unix
+      public_ip_name: IP_Publica_Unix
+      security_group: NSG_SSH_unix
+  - name: Crear VM
+    azure_rm_virtualmachine:
+      resource_group: MiGrupoDeRecursos_Unix
+      name: VM_Wintel
+      vm_size: Standard_B1s
+      admin_username: azureuser
+      ssh_password_enabled: false
+      ssh_public_keys:
+        - path: /home/azureuser/.ssh_temporal/authorized_keys
+          key_data: "<key_data>"
+      network_interfaces: NIC_Unix
+      image:
+        offer: almalinux
+        publisher: almalinux
+        sku: '8.7'
+        version: latest

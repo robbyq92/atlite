@@ -1,0 +1,9 @@
+---
+- name: Instalación del servidor Apache 
+  hosts: node1
+  become: yes
+  tasks:
+  - name: Instalamos la última versión de apache
+    ansible.builtin.yum:
+      name: httpd
+      state: latest

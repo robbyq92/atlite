@@ -1,0 +1,14 @@
+---
+- hosts: all
+  vars_prompt:
+    - name: admin_username
+      prompt: "Introducir la contraseña de Administrador"
+  vars:
+    ansible_user: userazure
+    ansible_connection: winrm
+    ansible_winrm_transport: ntlm
+    ansible_winrm_server_cert_validation: ignore
+  tasks:
+
+  - name: Ping
+    win_ping:

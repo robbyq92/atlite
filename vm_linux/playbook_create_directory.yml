@@ -1,0 +1,13 @@
+---
+- name: Crear Directorio Temporal
+  hosts: nodos
+  become: yes
+  tasks:
+  - name: Creamos el directorio /tmp/mi_carpeta_personal
+    file:
+      path: /tmp/mi_carpeta_personal
+      state: directory
+  - name: Creamos un fichero de prueba dentro de la carpeta creada
+    ansible.builtin.file:
+      path: /tmp/mi_carpeta_personal/fichero_temporal.txt
+      state: touch

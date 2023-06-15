@@ -1,0 +1,70 @@
+---
+- name: Crear Máquinas en Azure
+  hosts: localhost  #host a los que atacaremos. Estará en el fichero de hosts
+  connection: local
+  tasks:
+  - name: Creamos grupo de Recursos
+    azure_rm_resourcegroup:
+      name: MiGrupoDeRecursos_Wintel
+      location: eastus
+  - name: Creamos el VNetwork
+    azure_rm_virtualnetwork:
+      resource_group: MiGrupoDeRecursos_Wintel
+      name: Vnet_wintel
+      address_prefixes: "10.0.0.0/16"
+  - name: Añadimos Sub_Nets
+    azure_rm_subnet:
+      resource_group: MiGrupoDeRecursos_Wintel
+      name: Subnet_wintel
+      address_prefix: "10.0.1.0/24"
+      virtual_network: Vnet_wintel
+  - name: Creamos IP Publica
+    azure_rm_publicipaddress:
+      resource_group: MiGrupoDeRecursos_Wintel
+      allocation_method: Static
+      name: IP_Publica_Wintel
+    register: mi_ip_publica
+  - name: IP publica de la vm
+    debug:
+      msg: "La ip es {{ mi_ip_publica.state.ip_address }}."
+  - name: Crear NSG para SSH
+    azure_rm_securitygroup:
+      resource_group: MiGrupoDeRecursos_Wintel
+      name: NSG_SSH_wintel
+      rules:
+        - name: SSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 1001
+          direction: Inbound
+        - name: RDP
+          protocol: Tcp
+          destination_port_range: 3309
+          access: Allow
+          priority: 1001
+          direction: Inbound
+  - name: Crear NIC
+    azure_rm_networkinterface:
+      resource_group: MiGrupoDeRecursos_Wintel
+      name: NIC_Wintel
+      virtual_network: Vnet_wintel
+      subnet: Subnet_wintel
+      public_ip_name: IP_Publica_Wintel
+      security_group: NSG_SSH_wintel
+  - name: Crear VM
+    azure_rm_virtualmachine:
+      resource_group: MiGrupoDeRecursos_Wintel
+      name: VM_Wintel
+      vm_size: Standard_DS1_v2
+      admin_username: azureuser
+      ssh_password_enabled: false
+      ssh_public_keys:
+        - path: /home/azureuser/.ssh/authorized_keys
+          key_data: "<key_data>"
+      network_interfaces: NIC_Wintel
+      image:
+        offer: CentOS
+        publisher: OpenLogic
+        sku: '7.5'
+        version: latest
