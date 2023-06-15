@@ -1,0 +1,16 @@
+---
+- name: Parar Servicio y Cambiar usuario
+  hosts: localhost
+  connection: local
+  tasks:
+
+- name: Detenemos el servicio Netlogon
+  ansible.windows.win_service:
+    name: Netlogon
+    state: stopped
+
+- name: Cambiamos el usuario de iniciar sesion en el servicio
+  ansible.windows.win_service:
+    name: Netlogon
+    state: restarted
+    username: NT AUTHORITY\LocalService
